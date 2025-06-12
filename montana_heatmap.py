@@ -86,6 +86,243 @@ class ToastNotification:
         
         toast.after(duration, toast.destroy)
 
+class LoadingIndicator:
+    def __init__(self, parent, message="Loading..."):
+        self.parent = parent
+        self.loading_window = tk.Toplevel(parent)
+        self.loading_window.title("Loading")
+        
+        # Get screen dimensions
+        screen_width = self.loading_window.winfo_screenwidth()
+        screen_height = self.loading_window.winfo_screenheight()
+        
+        # Calculate position
+        width = 300
+        height = 100
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        
+        self.loading_window.geometry(f"{width}x{height}+{x}+{y}")
+        self.loading_window.overrideredirect(True)
+        self.loading_window.configure(bg='white')
+        
+        # Add loading text
+        self.status_label = tk.Label(
+            self.loading_window,
+            text=message,
+            bg='white',
+            font=('Arial', 12)
+        )
+        self.status_label.pack(pady=(20, 10))
+        
+        # Add progress bar
+        self.progress = ttk.Progressbar(
+            self.loading_window,
+            length=250,
+            mode='indeterminate'
+        )
+        self.progress.pack(pady=(0, 20))
+        
+        # Start the progress bar
+        self.progress.start(10)
+        
+        # Make sure the window is on top
+        self.loading_window.lift()
+        self.loading_window.attributes('-topmost', True)
+        
+        # Update the window
+        self.loading_window.update()
+    
+    def update_message(self, message):
+        self.status_label.config(text=message)
+        self.loading_window.update()
+    
+    def destroy(self):
+        self.progress.stop()
+        self.loading_window.destroy()
+
+class SummaryDialog:
+    def __init__(self, parent, file_path, data):
+        self.parent = parent
+        self.window = tk.Toplevel(parent)
+        self.window.title("Excel File Summary")
+        
+        # Get screen dimensions
+        screen_width = self.window.winfo_screenwidth()
+        screen_height = self.window.winfo_screenheight()
+        
+        # Calculate position
+        width = 500
+        height = 600
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        
+        self.window.geometry(f"{width}x{height}+{x}+{y}")
+        self.window.configure(bg='#f0f0f0')  # Light gray background
+        
+        # Make window modal
+        self.window.transient(parent)
+        self.window.grab_set()
+        
+        # Create main container with padding
+        main_container = tk.Frame(self.window, bg='#f0f0f0', padx=20, pady=20)
+        main_container.pack(fill='both', expand=True)
+        
+        # Add title with icon and styling
+        title_frame = tk.Frame(main_container, bg='#f0f0f0')
+        title_frame.pack(fill='x', pady=(0, 20))
+        
+        # Add a decorative line above the title
+        ttk.Separator(title_frame, orient='horizontal').pack(fill='x', pady=(0, 10))
+        
+        title_label = tk.Label(
+            title_frame,
+            text="Excel File Summary",
+            font=('Arial', 16, 'bold'),
+            bg='#f0f0f0',
+            fg='#2c3e50'  # Dark blue-gray color
+        )
+        title_label.pack()
+        
+        # Create a white content frame with shadow effect
+        content_frame = tk.Frame(main_container, bg='white', padx=20, pady=20)
+        content_frame.pack(fill='both', expand=True)
+        
+        # File information section
+        info_frame = tk.Frame(content_frame, bg='white')
+        info_frame.pack(fill='x', pady=(0, 20))
+        
+        # Add section title
+        section_title = tk.Label(
+            info_frame,
+            text="File Information",
+            font=('Arial', 12, 'bold'),
+            bg='white',
+            fg='#2c3e50',
+            anchor='w'
+        )
+        section_title.pack(fill='x', pady=(0, 10))
+        
+        # File information with improved styling
+        file_info = [
+            ("File Name:", os.path.basename(file_path)),
+            ("Total Records:", f"{len(data):,}"),
+            ("Total Families:", f"{len(data['family'].dropna().unique()):,}"),
+            ("Total Genera:", f"{len(data['genus'].dropna().unique()):,}"),
+            ("Total Species:", f"{len(data['species'].dropna().unique()):,}")
+        ]
+        
+        # Add file information with alternating background colors
+        for i, (label, value) in enumerate(file_info):
+            frame = tk.Frame(
+                info_frame,
+                bg='#f8f9fa' if i % 2 == 0 else 'white',
+                padx=10,
+                pady=5
+            )
+            frame.pack(fill='x', pady=1)
+            
+            tk.Label(
+                frame,
+                text=label,
+                font=('Arial', 10),
+                bg=frame['bg'],
+                fg='#2c3e50',
+                width=15,
+                anchor='w'
+            ).pack(side='left')
+            
+            tk.Label(
+                frame,
+                text=value,
+                font=('Arial', 10, 'bold'),
+                bg=frame['bg'],
+                fg='#2c3e50',
+                anchor='w'
+            ).pack(side='left', padx=(5, 0))
+        
+        # Add a separator
+        ttk.Separator(content_frame, orient='horizontal').pack(fill='x', pady=20)
+        
+        # Top families section
+        families_frame = tk.Frame(content_frame, bg='white')
+        families_frame.pack(fill='x')
+        
+        # Add section title
+        section_title = tk.Label(
+            families_frame,
+            text="Top 4 Families",
+            font=('Arial', 12, 'bold'),
+            bg='white',
+            fg='#2c3e50',
+            anchor='w'
+        )
+        section_title.pack(fill='x', pady=(0, 10))
+        
+        # Add top 5 families with improved styling
+        family_counts = data['family'].value_counts().head()
+        for i, (family, count) in enumerate(family_counts.items()):
+            frame = tk.Frame(
+                families_frame,
+                bg='#f8f9fa' if i % 2 == 0 else 'white',
+                padx=10,
+                pady=5
+            )
+            frame.pack(fill='x', pady=1)
+            
+            # Add rank number
+            rank_label = tk.Label(
+                frame,
+                text=f"{i+1}.",
+                font=('Arial', 10, 'bold'),
+                bg=frame['bg'],
+                fg='#2c3e50',
+                width=3,
+                anchor='w'
+            )
+            rank_label.pack(side='left')
+            
+            # Add family name
+            tk.Label(
+                frame,
+                text=family.title(),
+                font=('Arial', 10),
+                bg=frame['bg'],
+                fg='#2c3e50',
+                anchor='w'
+            ).pack(side='left', padx=(5, 0))
+            
+            # Add count with badge-like appearance
+            count_frame = tk.Frame(frame, bg='#e9ecef', padx=8, pady=2)
+            count_frame.pack(side='right')
+            
+            tk.Label(
+                count_frame,
+                text=f"{count:,}",
+                font=('Arial', 9, 'bold'),
+                bg='#e9ecef',
+                fg='#2c3e50'
+            ).pack()
+        
+        # Add close button with improved styling
+        button_frame = tk.Frame(main_container, bg='#f0f0f0')
+        button_frame.pack(fill='x', pady=(20, 0))
+        
+        close_button = ttk.Button(
+            button_frame,
+            text="Close",
+            command=self.window.destroy,
+            style='Accent.TButton'
+        )
+        close_button.pack(side='right')
+        
+        # Configure button style
+        style = ttk.Style()
+        style.configure('Accent.TButton', padding=10)
+        
+        # Center the window
+        self.window.update_idletasks()
+
 class MainApplication:
     def __init__(self):
         self.root = tk.Tk()
@@ -100,6 +337,11 @@ class MainApplication:
         self.montana_gdf = None
         self.hexagons = None
         self.current_map = None
+        
+        # Add variables for species selection
+        self.selected_family = tk.StringVar()
+        self.selected_genus = tk.StringVar()
+        self.selected_species = tk.StringVar()
         
         # Configure main window
         self.root.title("Montana Heat Map Generator")
@@ -150,6 +392,25 @@ class MainApplication:
         ttk.Entry(self.file_frame, textvariable=self.file_path_var, state='readonly').pack(side='left', fill='x', expand=True)
         ttk.Button(self.file_frame, text="Browse", command=self.load_excel).pack(side='right', padx=(5, 0))
         
+        # Species Selection Section
+        species_frame = ttk.LabelFrame(self.left_panel, text="Species Selection", padding="10")
+        species_frame.pack(fill='x', pady=(0, 20))
+        
+        # Family
+        ttk.Label(species_frame, text="Family:", style='TLabel').pack(fill='x')
+        self.family_dropdown = ttk.Combobox(species_frame, textvariable=self.selected_family, state="readonly")
+        self.family_dropdown.pack(fill='x', pady=(0, 10))
+        
+        # Genus
+        ttk.Label(species_frame, text="Genus:", style='TLabel').pack(fill='x')
+        self.genus_dropdown = ttk.Combobox(species_frame, textvariable=self.selected_genus, state="readonly")
+        self.genus_dropdown.pack(fill='x', pady=(0, 10))
+        
+        # Species
+        ttk.Label(species_frame, text="Species:", style='TLabel').pack(fill='x')
+        self.species_dropdown = ttk.Combobox(species_frame, textvariable=self.selected_species, state="readonly")
+        self.species_dropdown.pack(fill='x', pady=(0, 10))
+        
         # Hexagon count with preview button
         ttk.Label(self.left_panel, text="Number of Hexagons:").pack(anchor='w', pady=(0, 5))
         hex_frame = ttk.Frame(self.left_panel)
@@ -192,6 +453,10 @@ class MainApplication:
         # Action buttons
         ttk.Button(self.left_panel, text="Generate Heat Map", command=self.generate_map).pack(fill='x', pady=(20, 5))
         ttk.Button(self.left_panel, text="Download Heat Map", command=self.download_map).pack(fill='x', pady=(5, 0))
+        
+        # Bind dropdowns
+        self.family_dropdown.bind("<<ComboboxSelected>>", self.update_genus_dropdown)
+        self.genus_dropdown.bind("<<ComboboxSelected>>", self.update_species_dropdown)
 
     def _setup_map_display(self):
         self.figure = Figure(figsize=(10, 8))
@@ -212,17 +477,55 @@ class MainApplication:
             return
             
         try:
+            # Show loading indicator
+            loading = LoadingIndicator(self.root, "Loading Excel file...")
+            
             self.excel_data = pd.read_excel(file_path)
-            required_columns = ['lat', 'long']
+            required_columns = ['lat', 'long', 'family', 'genus', 'species']
             if not all(col in self.excel_data.columns for col in required_columns):
-                raise ValueError("Excel file must contain 'lat' and 'long' columns")
+                loading.destroy()
+                raise ValueError("Excel file must contain 'lat', 'long', 'family', 'genus', and 'species' columns")
                 
             self.file_path_var.set(file_path)
-            # print("Excel file loaded successfully")
-            # print("self.excel_data: ", self.excel_data)
-            print("self.excel_data.columns: ", self.excel_data.columns)
+            
+            # Process the data
+            loading.update_message("Processing data...")
+            for col in ["family", "genus", "species"]:
+                self.excel_data[col] = self.excel_data[col].astype(str).str.strip().str.lower()
+            
+            # Get valid families (non-empty/non-null values)
+            loading.update_message("Updating dropdowns...")
+            valid_families = sorted(self.excel_data["family"].dropna().unique())
+            valid_families = [f for f in valid_families if str(f).strip() and str(f).lower() != 'nan']  # Remove empty strings and 'nan'
+            
+            # Capitalize family names
+            family_values = ["All"] + [f.title() for f in valid_families]
+            
+            # Update Family dropdown
+            self.family_dropdown["values"] = family_values
+            self.family_dropdown.set("Select Family")
+            
+            # Reset other dropdowns
+            self.genus_dropdown.set("Select Genus")
+            self.genus_dropdown["values"] = []
+            self.species_dropdown.set("Select Species")
+            self.species_dropdown["values"] = []
+            
+            # Bind dropdowns
+            self.family_dropdown.bind("<<ComboboxSelected>>", self.update_genus_dropdown)
+            self.genus_dropdown.bind("<<ComboboxSelected>>", self.update_species_dropdown)
+            
+            # Destroy loading indicator
+            loading.destroy()
+            
+            # Show summary dialog
+            SummaryDialog(self.root, file_path, self.excel_data)
+            
             self.toast.show_toast("Excel file loaded successfully")
+            
         except Exception as e:
+            if 'loading' in locals():
+                loading.destroy()
             self.toast.show_toast(f"Error loading file: {str(e)}", error=True)
 
     def generate_hexagonal_grid(self, bounds: Tuple[float, float, float, float], n_hexagons: int) -> gpd.GeoDataFrame:
@@ -300,13 +603,18 @@ class MainApplication:
 
     def preview_grid(self):
         try:
+            # Show loading indicator
+            loading = LoadingIndicator(self.root, "Generating preview grid...")
+            
             # Convert hex count to int
             n_hexagons = int(self.hex_count_var.get())
             if n_hexagons <= 0:
+                loading.destroy()
                 raise ValueError("Number of hexagons must be positive")
             
             # Load Montana boundary if not already loaded
             if self.montana_gdf is None:
+                loading.update_message("Loading Montana boundary...")
                 # Load US counties and filter for Montana
                 all_counties = gpd.read_file("shapefiles/cb_2021_us_county_5m.shp")
                 self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']  # Montana's FIPS code is 30
@@ -316,10 +624,12 @@ class MainApplication:
                 self.montana_gdf = self.montana_gdf.dissolve()
             
             # Generate hexagonal grid
+            loading.update_message("Generating hexagonal grid...")
             bounds = self.montana_gdf.total_bounds
             self.hexagons = self.generate_hexagonal_grid(bounds, n_hexagons)
             
             # Plot the preview
+            loading.update_message("Rendering preview...")
             self.ax.clear()
             # Remove the box
             self.ax.set_frame_on(False)
@@ -343,9 +653,14 @@ class MainApplication:
             self.figure.tight_layout()
             self.canvas.draw()
             
+            # Destroy loading indicator
+            loading.destroy()
+            
             self.toast.show_toast(f"Preview grid with {n_hexagons} hexagons generated")
             
         except Exception as e:
+            if 'loading' in locals():
+                loading.destroy()
             self.toast.show_toast(f"Error generating preview: {str(e)}", error=True)
 
     def dms_to_decimal(self, coord):
@@ -412,20 +727,58 @@ class MainApplication:
             return
             
         try:
+            # Show loading indicator
+            loading = LoadingIndicator(self.root, "Generating heat map...")
+            
             # Convert hex count to int
             n_hexagons = int(self.hex_count_var.get())
             if n_hexagons <= 0:
+                loading.destroy()
                 raise ValueError("Number of hexagons must be positive")
                 
             # Validate required columns
-            required_columns = ['lat', 'lat_dir', 'long', 'long_dir']
+            required_columns = ['lat', 'lat_dir', 'long', 'long_dir', 'family', 'genus', 'species']
             if not all(col in self.excel_data.columns for col in required_columns):
-                raise ValueError("Excel file must contain 'lat', 'lat_dir', 'long', and 'long_dir' columns")
+                loading.destroy()
+                raise ValueError("Excel file must contain 'lat', 'lat_dir', 'long', 'long_dir', 'family', 'genus', and 'species' columns")
             
-            # Create points from Excel data with direction consideration
-            geometries = self.excel_data.apply(self.convert_coordinates, axis=1)
+            # Get selected values
+            fam = self.selected_family.get().strip()
+            gen = self.selected_genus.get().strip()
+            spec = self.selected_species.get().strip()
+            
+            if not fam or fam == "Select Family" or not gen or gen == "Select Genus" or not spec or spec == "Select Species":
+                loading.destroy()
+                messagebox.showerror("Missing Input", "Please select Family, Genus, and Species.")
+                return
+            
+            # Start with base DataFrame
+            loading.update_message("Filtering data...")
+            filtered = self.excel_data
+            
+            # Apply family filter
+            if fam == "All":
+                filtered = filtered[filtered["family"].notna() & (filtered["family"].str.strip() != "")]
+            else:
+                filtered = filtered[filtered["family"].str.lower() == fam.lower()]
+            
+            # Apply genus filter
+            if gen == "All":
+                filtered = filtered[filtered["genus"].notna() & (filtered["genus"].str.strip() != "")]
+            else:
+                filtered = filtered[filtered["genus"].str.lower() == gen.lower()]
+            
+            # Apply species filter
+            if spec == "all":
+                filtered = filtered[filtered["species"].notna() & (filtered["species"].str.strip() != "")]
+            else:
+                filtered = filtered[filtered["species"].str.lower() == spec.lower()]
+            
+            # Create points from filtered data
+            loading.update_message("Creating points...")
+            geometries = filtered.apply(self.convert_coordinates, axis=1)
             points = gpd.GeoDataFrame(
-                self.excel_data,
+                filtered,
                 geometry=geometries,
                 crs="EPSG:4326"
             )
@@ -435,6 +788,7 @@ class MainApplication:
             points = points[points.geometry.within(montana_poly)]
             
             if len(points) == 0:
+                loading.destroy()
                 self.toast.show_toast("No points found within Montana's boundaries", error=True)
                 return
             
@@ -443,6 +797,7 @@ class MainApplication:
             
             # Generate hexagonal grid if not already generated
             if self.hexagons is None:
+                loading.update_message("Generating hexagonal grid...")
                 # Load Montana boundary if not already loaded
                 if self.montana_gdf is None:
                     # Load US counties and filter for Montana
@@ -458,21 +813,16 @@ class MainApplication:
                 self.hexagons = self.generate_hexagonal_grid(bounds, n_hexagons)
             
             # Initialize point_count column with zeros
+            loading.update_message("Counting points in hexagons...")
             self.hexagons['point_count'] = 0
             
             # Count points in each hexagon
             for idx, hexagon in self.hexagons.iterrows():
-                # Count points that fall within this hexagon
-                # print("idx: ", idx)
-                # print("hexagon: ", hexagon)
-                # print("points: ", points)
-                # print("hexagon.geometry: ", hexagon.geometry)
-                # print("points.within(hexagon.geometry): ", points.within(hexagon.geometry))
-                # print("points.within(hexagon.geometry).count(): ", points.within(hexagon.geometry).count())
                 points_in_hex = points[points.within(hexagon.geometry)]
                 self.hexagons.at[idx, 'point_count'] = len(points_in_hex)
             
             # Assign colors based on ranges
+            loading.update_message("Assigning colors...")
             self.hexagons['color'] = None  # Initialize with None
             
             # Sort ranges by min value to ensure proper order of application
@@ -492,6 +842,7 @@ class MainApplication:
                 self.hexagons.loc[mask, 'color'] = color
             
             # Plot the map
+            loading.update_message("Rendering map...")
             self.ax.clear()
             # Remove the box
             self.ax.set_frame_on(False)
@@ -537,9 +888,14 @@ class MainApplication:
             self.figure.tight_layout()
             self.canvas.draw()
             
+            # Destroy loading indicator
+            loading.destroy()
+            
             self.toast.show_toast("Map generated successfully")
             
         except Exception as e:
+            if 'loading' in locals():
+                loading.destroy()
             self.toast.show_toast(f"Error generating map: {str(e)}", error=True)
 
     def download_map(self):
@@ -583,6 +939,72 @@ class MainApplication:
         h = self.right_panel.winfo_height() / 100
         self.figure.set_size_inches(w, h)
         self.canvas.draw()
+
+    def update_genus_dropdown(self, event=None):
+        family = self.selected_family.get().strip()
+        
+        if family == "Select Family":
+            self.genus_dropdown["values"] = []
+            self.genus_dropdown.set("Select Genus")
+            return
+        
+        # Filter based on family selection
+        if family == "All":
+            # Get all non-empty genus values
+            filtered = self.excel_data[self.excel_data["genus"].notna() & (self.excel_data["genus"].str.strip() != "")]
+        else:
+            # Get genus for specific family (case-insensitive)
+            filtered = self.excel_data[self.excel_data["family"].str.lower() == family.lower()]
+        
+        # Get valid genera (non-empty/non-null values)
+        valid_genera = sorted(filtered["genus"].dropna().unique())
+        valid_genera = [g for g in valid_genera if str(g).strip() and str(g).lower() != 'nan']  # Remove empty strings and 'nan'
+        
+        # Create genus list with special options
+        genus_values = ["All"] + [g.title() for g in valid_genera]
+        
+        # Update Genus dropdown
+        self.genus_dropdown["values"] = genus_values
+        self.genus_dropdown.set("Select Genus")
+        
+        # Reset species dropdown
+        self.species_dropdown.set("Select Species")
+        self.species_dropdown["values"] = []
+    
+    def update_species_dropdown(self, event=None):
+        family = self.selected_family.get().strip()
+        genus = self.selected_genus.get().strip()
+        
+        if family == "Select Family" or genus == "Select Genus":
+            self.species_dropdown["values"] = []
+            self.species_dropdown.set("Select Species")
+            return
+        
+        # Start with base DataFrame
+        filtered = self.excel_data
+        
+        # Apply family filter
+        if family == "All":
+            filtered = filtered[filtered["family"].notna() & (filtered["family"].str.strip() != "")]
+        else:
+            filtered = filtered[filtered["family"].str.lower() == family.lower()]
+        
+        # Apply genus filter
+        if genus == "All":
+            filtered = filtered[filtered["genus"].notna() & (filtered["genus"].str.strip() != "")]
+        else:
+            filtered = filtered[filtered["genus"].str.lower() == genus.lower()]
+        
+        # Get valid species (non-empty/non-null values)
+        valid_species = sorted(filtered["species"].dropna().unique())
+        valid_species = [s for s in valid_species if str(s).strip() and str(s).lower() != 'nan']  # Remove empty strings and 'nan'
+        
+        # Create species list with special options - note lowercase for species
+        species_values = ["all"] + valid_species
+        
+        # Update Species dropdown
+        self.species_dropdown["values"] = species_values
+        self.species_dropdown.set("Select Species")
 
     def run(self):
         self.root.mainloop()
