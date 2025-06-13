@@ -601,63 +601,64 @@ class MainApplication:
         hex_gdf = gpd.GeoDataFrame(geometry=hexagons, crs=self.montana_gdf.crs)
         return hex_gdf
 
+    def calculate_hexagon_dimensions(self, hex_gdf):
+        """Calculate the true width (vertex to vertex) and height (flat to flat) of a hexagon in miles and kilometers."""
+        # Get the first hexagon's geometry
+        hex_geom = hex_gdf.iloc[0].geometry
+        coords = list(hex_geom.exterior.coords)
+        if len(coords) < 7:
+            return {'miles': {'width': 0, 'height': 0}, 'kilometers': {'width': 0, 'height': 0}}
+        # Width: distance between two opposite vertices (vertex 0 and vertex 3)
+        vertex1 = np.array(coords[0])
+        vertex4 = np.array(coords[3])
+        width = np.linalg.norm(vertex1 - vertex4)
+        # Height: flat-to-flat (for a regular hexagon, height = width * sqrt(3) / 2)
+        height = width * np.sqrt(3) / 2
+        # Convert to miles and kilometers
+        width_miles = width * 0.000621371
+        height_miles = height * 0.000621371
+        width_km = width / 1000
+        height_km = height / 1000
+        return {
+            'miles': {'width': width_miles, 'height': height_miles},
+            'kilometers': {'width': width_km, 'height': height_km}
+        }
+
     def preview_grid(self):
         try:
-            # Show loading indicator
             loading = LoadingIndicator(self.root, "Generating preview grid...")
-            
-            # Convert hex count to int
             n_hexagons = int(self.hex_count_var.get())
             if n_hexagons <= 0:
                 loading.destroy()
                 raise ValueError("Number of hexagons must be positive")
-            
-            # Load Montana boundary if not already loaded
             if self.montana_gdf is None:
                 loading.update_message("Loading Montana boundary...")
-                # Load US counties and filter for Montana
                 all_counties = gpd.read_file("shapefiles/cb_2021_us_county_5m.shp")
-                self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']  # Montana's FIPS code is 30
-                # Convert to a better projection for Montana (NAD 83 / Montana State Plane)
+                self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']
                 self.montana_gdf = self.montana_gdf.to_crs("EPSG:32100")
-                # Dissolve counties to get state boundary
                 self.montana_gdf = self.montana_gdf.dissolve()
-            
-            # Generate hexagonal grid
             loading.update_message("Generating hexagonal grid...")
             bounds = self.montana_gdf.total_bounds
             self.hexagons = self.generate_hexagonal_grid(bounds, n_hexagons)
             
-            # Plot the preview
             loading.update_message("Rendering preview...")
-            self.ax.clear()
-            # Remove the box
+            self.figure.clf()
+            self.ax = self.figure.add_subplot(111)
             self.ax.set_frame_on(False)
-            
-            # Plot state boundary with no fill and thin black line
-            self.montana_gdf.boundary.plot(ax=self.ax, color='black', linewidth=0.5)
-            # Plot hexagons with white fill and light gray edges
-            self.hexagons.boundary.plot(ax=self.ax, color='gray', linewidth=0.5)
-            
-            # Set proper aspect ratio and limits
-            self.ax.set_aspect('equal')
-            
-            # Add padding to the bounds
-            bounds = self.montana_gdf.total_bounds
-            padding = (bounds[2] - bounds[0]) * 0.15  # 15% padding
-            self.ax.set_xlim([bounds[0] - padding, bounds[2] + padding])
-            self.ax.set_ylim([bounds[1] - padding, bounds[3] + padding])
-            
             self.ax.set_xticks([])
             self.ax.set_yticks([])
-            self.figure.tight_layout()
+            self.ax.set_aspect('equal')
+            self.montana_gdf.boundary.plot(ax=self.ax, color='black', linewidth=0.5)
+            self.hexagons.boundary.plot(ax=self.ax, color='gray', linewidth=0.5)
+            bounds = self.montana_gdf.total_bounds
+            padding = (bounds[2] - bounds[0]) * 0.15
+            self.ax.set_xlim([bounds[0] - padding, bounds[2] + padding])
+            self.ax.set_ylim([bounds[1] - padding, bounds[3] + padding])
+            self.figure.subplots_adjust(bottom=0.22, top=0.93, left=0.01, right=0.99)
+            
             self.canvas.draw()
-            
-            # Destroy loading indicator
             loading.destroy()
-            
             self.toast.show_toast(f"Preview grid with {n_hexagons} hexagons generated")
-            
         except Exception as e:
             if 'loading' in locals():
                 loading.destroy()
@@ -725,56 +726,37 @@ class MainApplication:
         if self.excel_data is None:
             self.toast.show_toast("Please load an Excel file first", error=True)
             return
-            
         try:
-            # Show loading indicator
             loading = LoadingIndicator(self.root, "Generating heat map...")
-            
-            # Convert hex count to int
             n_hexagons = int(self.hex_count_var.get())
             if n_hexagons <= 0:
                 loading.destroy()
                 raise ValueError("Number of hexagons must be positive")
-                
-            # Validate required columns
             required_columns = ['lat', 'lat_dir', 'long', 'long_dir', 'family', 'genus', 'species']
             if not all(col in self.excel_data.columns for col in required_columns):
                 loading.destroy()
                 raise ValueError("Excel file must contain 'lat', 'lat_dir', 'long', 'long_dir', 'family', 'genus', and 'species' columns")
-            
-            # Get selected values
             fam = self.selected_family.get().strip()
             gen = self.selected_genus.get().strip()
             spec = self.selected_species.get().strip()
-            
             if not fam or fam == "Select Family" or not gen or gen == "Select Genus" or not spec or spec == "Select Species":
                 loading.destroy()
                 messagebox.showerror("Missing Input", "Please select Family, Genus, and Species.")
                 return
-            
-            # Start with base DataFrame
             loading.update_message("Filtering data...")
             filtered = self.excel_data
-            
-            # Apply family filter
             if fam == "All":
                 filtered = filtered[filtered["family"].notna() & (filtered["family"].str.strip() != "")]
             else:
                 filtered = filtered[filtered["family"].str.lower() == fam.lower()]
-            
-            # Apply genus filter
             if gen == "All":
                 filtered = filtered[filtered["genus"].notna() & (filtered["genus"].str.strip() != "")]
             else:
                 filtered = filtered[filtered["genus"].str.lower() == gen.lower()]
-            
-            # Apply species filter
             if spec == "all":
                 filtered = filtered[filtered["species"].notna() & (filtered["species"].str.strip() != "")]
             else:
                 filtered = filtered[filtered["species"].str.lower() == spec.lower()]
-            
-            # Create points from filtered data
             loading.update_message("Creating points...")
             geometries = filtered.apply(self.convert_coordinates, axis=1)
             points = gpd.GeoDataFrame(
@@ -782,74 +764,50 @@ class MainApplication:
                 geometry=geometries,
                 crs="EPSG:4326"
             )
-            
-            # Filter points to only those inside the actual Montana polygon
             montana_poly = self.montana_gdf.to_crs("EPSG:4326").geometry.iloc[0]
             points = points[points.geometry.within(montana_poly)]
-            
             if len(points) == 0:
                 loading.destroy()
                 self.toast.show_toast("No points found within Montana's boundaries", error=True)
                 return
-            
-            # Convert points to the same CRS as Montana
             points = points.to_crs(self.montana_gdf.crs)
-            
-            # Generate hexagonal grid if not already generated
             if self.hexagons is None:
                 loading.update_message("Generating hexagonal grid...")
-                # Load Montana boundary if not already loaded
                 if self.montana_gdf is None:
-                    # Load US counties and filter for Montana
                     all_counties = gpd.read_file("shapefiles/cb_2021_us_county_5m.shp")
-                    self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']  # Montana's FIPS code is 30
-                    # Convert to a better projection for Montana (NAD 83 / Montana State Plane)
+                    self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']
                     self.montana_gdf = self.montana_gdf.to_crs("EPSG:32100")
-                    # Dissolve counties to get state boundary
                     self.montana_gdf = self.montana_gdf.dissolve()
-                
-                # Generate hexagonal grid
                 bounds = self.montana_gdf.total_bounds
                 self.hexagons = self.generate_hexagonal_grid(bounds, n_hexagons)
             
-            # Initialize point_count column with zeros
+            # Calculate hexagon dimensions
+            dimensions = self.calculate_hexagon_dimensions(self.hexagons)
+            
             loading.update_message("Counting points in hexagons...")
             self.hexagons['point_count'] = 0
-            
-            # Count points in each hexagon
             for idx, hexagon in self.hexagons.iterrows():
                 points_in_hex = points[points.within(hexagon.geometry)]
                 self.hexagons.at[idx, 'point_count'] = len(points_in_hex)
-            
-            # Assign colors based on ranges
             loading.update_message("Assigning colors...")
-            self.hexagons['color'] = None  # Initialize with None
-            
-            # Sort ranges by min value to ensure proper order of application
+            self.hexagons['color'] = None
             ranges = []
             for min_var, max_var, color_var in self.color_ranges:
                 min_val = float(min_var.get())
                 max_val = float('inf') if max_var.get() == "∞" else float(max_var.get())
                 ranges.append((min_val, max_val, color_var.get()))
-            
-            # Sort ranges by minimum value
             ranges.sort(key=lambda x: x[0])
-            
-            # Apply colors based on point counts
             for min_val, max_val, color in ranges:
-                # Create mask for hexagons within this range
                 mask = (self.hexagons['point_count'] >= min_val) & (self.hexagons['point_count'] <= max_val)
                 self.hexagons.loc[mask, 'color'] = color
-            
-            # Plot the map
             loading.update_message("Rendering map...")
-            self.ax.clear()
-            # Remove the box
+            self.figure.clf()
+            self.ax = self.figure.add_subplot(111)
             self.ax.set_frame_on(False)
-            
-            # Plot state boundary with no fill and thin black line
+            self.ax.set_xticks([])
+            self.ax.set_yticks([])
+            self.ax.set_aspect('equal')
             self.montana_gdf.boundary.plot(ax=self.ax, color='black', linewidth=0.5)
-            # Plot hexagons with colors and very thin edges
             for idx, hexagon in self.hexagons.iterrows():
                 color = hexagon['color']
                 if color:
@@ -860,39 +818,49 @@ class MainApplication:
                                linewidth=0.1,
                                alpha=0.7)
             
-            # Add legend
+            bounds = self.montana_gdf.total_bounds
+            padding = (bounds[2] - bounds[0]) * 0.15
+            self.ax.set_xlim([bounds[0] - padding, bounds[2] + padding])
+            self.ax.set_ylim([bounds[1] - padding, bounds[3] + padding])
+            self.figure.subplots_adjust(bottom=0.18, top=0.93, left=0.01, right=0.99)
+            
+            # Header at the top
+            species_text = f"{fam} > {gen} > {spec}"
+            self.ax.text(0.5, 1.03, species_text, transform=self.ax.transAxes, fontsize=15, fontweight='bold', color='#2c3e50', ha='center', va='top')
+            
+            # Hexagon dimensions in bottom right
+            dim_text = (
+                f"Hexagon Width: {dimensions['miles']['width']:.2f} mi / {dimensions['kilometers']['width']:.2f} km\n"
+                f"Hexagon Height: {dimensions['miles']['height']:.2f} mi / {dimensions['kilometers']['height']:.2f} km"
+            )
+            self.ax.text(0.5, 0.02, dim_text, transform=self.ax.transAxes, fontsize=9,
+                        fontweight='normal', color='#2c3e50', ha='center', va='bottom',
+                        bbox=dict(facecolor='#f8f9fa', edgecolor='#cccccc', boxstyle='round,pad=0.25', alpha=0.92))
+            
+            import matplotlib.patches as mpatches
             legend_elements = []
+            legend_labels = []
             for min_var, max_var, color_var in self.color_ranges:
                 min_val = min_var.get()
                 max_val = "∞" if max_var.get() == "∞" else max_var.get()
                 label = f"{min_val}-{max_val}"
-                legend_elements.append(plt.Rectangle((0, 0), 1, 1, fc=color_var.get()))
-            
-            self.ax.legend(legend_elements,
-                         [f"{min_var.get()}-{max_var.get()}" for min_var, max_var, _ in self.color_ranges],
-                         title="Point Count Ranges",
-                         loc='center left',
-                         bbox_to_anchor=(1, 0.5))
-            
-            # Set proper aspect ratio and limits
-            self.ax.set_aspect('equal')
-            
-            # Add padding to the bounds
-            bounds = self.montana_gdf.total_bounds
-            padding = (bounds[2] - bounds[0]) * 0.15  # 15% padding
-            self.ax.set_xlim([bounds[0] - padding, bounds[2] + padding])
-            self.ax.set_ylim([bounds[1] - padding, bounds[3] + padding])
-            
-            self.ax.set_xticks([])
-            self.ax.set_yticks([])
-            self.figure.tight_layout()
+                legend_elements.append(mpatches.Patch(facecolor=color_var.get(), edgecolor='black'))
+                legend_labels.append(label)
+            self.ax.legend(
+                legend_elements,
+                legend_labels,
+                title="Point Count Ranges",
+                loc='lower center',
+                bbox_to_anchor=(0.5, -0.18),
+                ncol=len(legend_elements),
+                frameon=True,
+                fancybox=True,
+                shadow=False,
+                borderpad=1.2
+            )
             self.canvas.draw()
-            
-            # Destroy loading indicator
             loading.destroy()
-            
             self.toast.show_toast("Map generated successfully")
-            
         except Exception as e:
             if 'loading' in locals():
                 loading.destroy()
