@@ -1,6 +1,45 @@
 # Montana Heat Map Generator
 
-A powerful desktop application for visualizing and analyzing spatial data in Montana using a hexagon-based heat map. Built with Python, Tkinter, GeoPandas, Matplotlib, and Pandas, this tool is designed for researchers, ecologists, and anyone working with geospatial point data (e.g., bee sampling, biodiversity, field surveys).
+A desktop application for generating heat maps of species distribution in Montana.
+
+## Building the Executable
+
+To build the executable, follow these steps:
+
+1. Make sure you have Python 3.8 or later installed
+2. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Place your icon file (`app_icon.ico`) in the project root directory
+4. Run PyInstaller to create the executable:
+   ```
+   pyinstaller montana_heatmap.spec
+   ```
+
+The executable will be created in the `dist` directory.
+
+## Required Files
+
+Before building, ensure you have:
+1. `app_icon.ico` - Your application icon file
+2. `shapefiles` directory - Contains the Montana county shapefiles
+3. All Python source files
+
+## Running the Application
+
+After building, you can run the application by:
+1. Double-clicking the executable in the `dist` directory
+2. Or running it from the command line:
+   ```
+   "dist/Montana Heat Map Generator.exe"
+   ```
+
+## Notes
+
+- The application requires the shapefiles directory to be in the same location as the executable
+- The icon file will be automatically included in the executable
+- All dependencies will be bundled with the executable
 
 ---
 

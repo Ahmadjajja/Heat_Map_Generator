@@ -10,12 +10,28 @@ import numpy as np
 import os
 from typing import Dict, List, Tuple, Optional
 import re
+import sys
+
+def get_icon_path():
+    """Get the path to the application icon"""
+    if getattr(sys, 'frozen', False):
+        # If running as exe
+        base_dir = sys._MEIPASS
+    else:
+        # If running as script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, "app_icon.ico")
 
 class SplashScreen:
     def __init__(self, parent):
         self.parent = parent
         self.splash = tk.Toplevel(parent)
         self.splash.title("Montana Heat Map Generator")
+        
+        # Set icon
+        icon_path = get_icon_path()
+        if os.path.exists(icon_path):
+            self.splash.iconbitmap(icon_path)
         
         # Get screen dimensions
         screen_width = self.splash.winfo_screenwidth()
@@ -146,6 +162,11 @@ class SummaryDialog:
         self.parent = parent
         self.window = tk.Toplevel(parent)
         self.window.title("Excel File Summary")
+        
+        # Set icon
+        icon_path = get_icon_path()
+        if os.path.exists(icon_path):
+            self.window.iconbitmap(icon_path)
         
         # Get screen dimensions
         screen_width = self.window.winfo_screenwidth()
@@ -327,6 +348,11 @@ class MainApplication:
     def __init__(self):
         self.root = tk.Tk()
         self.root.withdraw()  # Hide main window initially
+        
+        # Set icon
+        icon_path = get_icon_path()
+        if os.path.exists(icon_path):
+            self.root.iconbitmap(icon_path)
         
         # Show splash screen
         self.splash = SplashScreen(self.root)
