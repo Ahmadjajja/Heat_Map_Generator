@@ -14,13 +14,29 @@ import sys
 
 def get_icon_path():
     """Get the path to the application icon"""
-    if getattr(sys, 'frozen', False):
-        # If running as exe
-        base_dir = sys._MEIPASS
-    else:
-        # If running as script
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_dir, "app_icon.ico")
+    try:
+        if getattr(sys, 'frozen', False):
+            # If running as exe
+            base_dir = sys._MEIPASS
+        else:
+            # If running as script
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Try different possible paths
+        possible_paths = [
+            os.path.join(base_dir, "app_icon.ico"),
+            os.path.join(base_dir, "dist", "MontanaHeatMap", "app_icon.ico"),
+            os.path.join(base_dir, "..", "app_icon.ico")
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                return path
+                
+        # If no path found, return None
+        return None
+    except Exception:
+        return None
 
 class SplashScreen:
     def __init__(self, parent):
@@ -30,8 +46,11 @@ class SplashScreen:
         
         # Set icon
         icon_path = get_icon_path()
-        if os.path.exists(icon_path):
-            self.splash.iconbitmap(icon_path)
+        if icon_path and os.path.exists(icon_path):
+            try:
+                self.splash.iconbitmap(icon_path)
+            except Exception as e:
+                print(f"Warning: Could not set icon: {str(e)}")
         
         # Get screen dimensions
         screen_width = self.splash.winfo_screenwidth()
@@ -165,7 +184,7 @@ class SummaryDialog:
         
         # Set icon
         icon_path = get_icon_path()
-        if os.path.exists(icon_path):
+        if icon_path and os.path.exists(icon_path):
             self.window.iconbitmap(icon_path)
         
         # Get screen dimensions
@@ -351,8 +370,11 @@ class MainApplication:
         
         # Set icon
         icon_path = get_icon_path()
-        if os.path.exists(icon_path):
-            self.root.iconbitmap(icon_path)
+        if icon_path and os.path.exists(icon_path):
+            try:
+                self.root.iconbitmap(icon_path)
+            except Exception as e:
+                print(f"Warning: Could not set icon: {str(e)}")
         
         # Show splash screen
         self.splash = SplashScreen(self.root)
@@ -450,11 +472,11 @@ class MainApplication:
         self.color_ranges = []
         default_ranges = [
             (0, 0, "white"),
-            (1, 15, "yellow"),
-            (16, 100, "orange"),
-            (101, 105, "red"),
-            (106, 120, "purple"),
-            (121, float('inf'), "black")
+            (1, 15, "#ffeda0"),
+            (16, 100, "#feb24c"),
+            (101, 105, "#fc4e2a"),
+            (106, 120, "#bd0026"),
+            (121, float('inf'), "#800026")
         ]
         
         ttk.Label(self.left_panel, text="Color Ranges:").pack(anchor='w', pady=(0, 5))
