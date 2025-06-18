@@ -12,28 +12,20 @@ from typing import Dict, List, Tuple, Optional
 import re
 import sys
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    import sys, os
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 def get_icon_path():
-    """Get the path to the application icon"""
+    """Get the path to the application icon, using resource_path for PyInstaller compatibility"""
     try:
-        if getattr(sys, 'frozen', False):
-            # If running as exe
-            base_dir = sys._MEIPASS
-        else:
-            # If running as script
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Try different possible paths
-        possible_paths = [
-            os.path.join(base_dir, "app_icon.ico"),
-            os.path.join(base_dir, "dist", "MontanaHeatMap", "app_icon.ico"),
-            os.path.join(base_dir, "..", "app_icon.ico")
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                return path
-                
-        # If no path found, return None
+        # Always use resource_path to ensure compatibility with PyInstaller
+        icon_path = resource_path("app_icon.ico")
+        if os.path.exists(icon_path):
+            return icon_path
         return None
     except Exception:
         return None
@@ -50,7 +42,7 @@ class SplashScreen:
             try:
                 self.splash.iconbitmap(icon_path)
             except Exception as e:
-                print(f"Warning: Could not set icon: {str(e)}")
+                print(f"Warning: Could not set icon for splash screen: {str(e)}")
         
         # Get screen dimensions
         screen_width = self.splash.winfo_screenwidth()
@@ -102,6 +94,14 @@ class ToastNotification:
         toast = tk.Toplevel(self.parent)
         toast.overrideredirect(True)
         
+        # Set icon
+        icon_path = get_icon_path()
+        if icon_path and os.path.exists(icon_path):
+            try:
+                toast.iconbitmap(icon_path)
+            except Exception as e:
+                print(f"Warning: Could not set icon for toast: {str(e)}")
+        
         # Position toast at bottom right
         toast.geometry(f"+{self.parent.winfo_screenwidth() - 310}+{self.parent.winfo_screenheight() - 100}")
         
@@ -126,6 +126,14 @@ class LoadingIndicator:
         self.parent = parent
         self.loading_window = tk.Toplevel(parent)
         self.loading_window.title("Loading")
+        
+        # Set icon
+        icon_path = get_icon_path()
+        if icon_path and os.path.exists(icon_path):
+            try:
+                self.loading_window.iconbitmap(icon_path)
+            except Exception as e:
+                print(f"Warning: Could not set icon for loading window: {str(e)}")
         
         # Get screen dimensions
         screen_width = self.loading_window.winfo_screenwidth()
@@ -167,7 +175,7 @@ class LoadingIndicator:
         
         # Update the window
         self.loading_window.update()
-    
+
     def update_message(self, message):
         self.status_label.config(text=message)
         self.loading_window.update()
@@ -185,7 +193,10 @@ class SummaryDialog:
         # Set icon
         icon_path = get_icon_path()
         if icon_path and os.path.exists(icon_path):
-            self.window.iconbitmap(icon_path)
+            try:
+                self.window.iconbitmap(icon_path)
+            except Exception as e:
+                print(f"Warning: Could not set icon for summary dialog: {str(e)}")
         
         # Get screen dimensions
         screen_width = self.window.winfo_screenwidth()
@@ -374,7 +385,7 @@ class MainApplication:
             try:
                 self.root.iconbitmap(icon_path)
             except Exception as e:
-                print(f"Warning: Could not set icon: {str(e)}")
+                print(f"Warning: Could not set icon for main window: {str(e)}")
         
         # Show splash screen
         self.splash = SplashScreen(self.root)
@@ -681,7 +692,7 @@ class MainApplication:
                 raise ValueError("Number of hexagons must be positive")
             if self.montana_gdf is None:
                 loading.update_message("Loading Montana boundary...")
-                all_counties = gpd.read_file("shapefiles/cb_2021_us_county_5m.shp")
+                all_counties = gpd.read_file(resource_path("shapefiles/cb_2021_us_county_5m.shp"))
                 self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']
                 self.montana_gdf = self.montana_gdf.to_crs("EPSG:32100")
                 self.montana_gdf = self.montana_gdf.dissolve()
@@ -708,7 +719,9 @@ class MainApplication:
             loading.destroy()
             self.toast.show_toast(f"Preview grid with {n_hexagons} hexagons generated")
         except Exception as e:
+            print(f"Error generating preview: {str(e)}")  # Print error to console
             if 'loading' in locals():
+                print(f"Error generating preview: {str(e)}")  # Print error to console
                 loading.destroy()
             self.toast.show_toast(f"Error generating preview: {str(e)}", error=True)
 
@@ -822,7 +835,7 @@ class MainApplication:
             if self.hexagons is None:
                 loading.update_message("Generating hexagonal grid...")
                 if self.montana_gdf is None:
-                    all_counties = gpd.read_file("shapefiles/cb_2021_us_county_5m.shp")
+                    all_counties = gpd.read_file(resource_path("shapefiles/cb_2021_us_county_5m.shp"))
                     self.montana_gdf = all_counties[all_counties['STATEFP'] == '30']
                     self.montana_gdf = self.montana_gdf.to_crs("EPSG:32100")
                     self.montana_gdf = self.montana_gdf.dissolve()
@@ -1026,5 +1039,11 @@ class MainApplication:
         self.root.mainloop()
 
 if __name__ == "__main__":
+    if getattr(sys, 'frozen', False):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    os.environ['GDAL_DATA'] = os.path.join(base, 'gdal-data')
+    os.environ['PROJ_LIB'] = os.path.join(base, 'proj')
     app = MainApplication()
     app.run() 
