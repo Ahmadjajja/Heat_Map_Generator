@@ -396,6 +396,7 @@ class MainApplication:
         self.montana_gdf = None
         self.hexagons = None
         self.current_map = None
+        self.grid_previewed = False  # Track if grid has been previewed
         
         # Add variables for species selection
         self.selected_family = tk.StringVar()
@@ -476,8 +477,12 @@ class MainApplication:
         hex_frame.pack(fill='x', pady=(0, 20))
         
         self.hex_count_var = tk.StringVar(value="100")
-        ttk.Entry(hex_frame, textvariable=self.hex_count_var).pack(side='left', fill='x', expand=True)
+        hex_entry = ttk.Entry(hex_frame, textvariable=self.hex_count_var)
+        hex_entry.pack(side='left', fill='x', expand=True)
         ttk.Button(hex_frame, text="Preview Grid", command=self.preview_grid).pack(side='right', padx=(5, 0))
+        
+        # Bind hex count changes to reset preview status
+        self.hex_count_var.trace('w', self.on_hex_count_change)
         
         # Color ranges
         self.color_ranges = []
@@ -510,7 +515,7 @@ class MainApplication:
             self.color_ranges.append((min_var, max_var, color_var))
         
         # Action buttons
-        ttk.Button(self.left_panel, text="Generate Heat Map", command=self.generate_map).pack(fill='x', pady=(20, 5))
+        ttk.Button(self.left_panel, text="Generate Heat Map", command=self.generate_map).pack(fill='x', pady=(5, 5))
         ttk.Button(self.left_panel, text="Download Heat Map", command=self.download_map).pack(fill='x', pady=(5, 0))
         
         # Bind dropdowns
@@ -718,6 +723,10 @@ class MainApplication:
             self.canvas.draw()
             loading.destroy()
             self.toast.show_toast(f"Preview grid with {n_hexagons} hexagons generated")
+            
+            # Mark grid as previewed and hide reminder
+            self.grid_previewed = True
+            # self.reminder_label.pack_forget() # This line is removed
         except Exception as e:
             print(f"Error generating preview: {str(e)}")  # Print error to console
             if 'loading' in locals():
@@ -787,6 +796,12 @@ class MainApplication:
         if self.excel_data is None:
             self.toast.show_toast("Please load an Excel file first", error=True)
             return
+        
+        # Check if grid has been previewed
+        if not self.grid_previewed:
+            messagebox.showerror("Grid Not Previewed", "⚠️ Please preview the hexagon grid before generating the heatmap.")
+            return
+            
         try:
             loading = LoadingIndicator(self.root, "Generating heat map...")
             n_hexagons = int(self.hex_count_var.get())
@@ -1000,6 +1015,18 @@ class MainApplication:
         self.species_dropdown.set("Select Species")
         self.species_dropdown["values"] = []
     
+    def on_hex_count_change(self, *args):
+        """Reset grid preview status when hex count changes"""
+        if self.grid_previewed:
+            self.grid_previewed = False
+            # Show reminder again if it's not already visible
+            try:
+                # self.reminder_label.pack_info() # This line is removed
+                pass # No reminder label to pack
+            except tk.TclError:
+                # Reminder is not packed, so pack it
+                pass # No reminder label to pack
+
     def update_species_dropdown(self, event=None):
         family = self.selected_family.get().strip()
         genus = self.selected_genus.get().strip()
