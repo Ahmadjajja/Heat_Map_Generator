@@ -403,6 +403,9 @@ class MainApplication:
         self.selected_genus = tk.StringVar()
         self.selected_species = tk.StringVar()
         
+        # Add variable for format selection
+        self.selected_format = tk.StringVar(value="tiff")
+        
         # Configure main window
         self.root.title("Montana Heat Map Generator")
         self.root.state('zoomed')  # Start maximized
@@ -416,6 +419,9 @@ class MainApplication:
         # Destroy splash screen and show main window
         self.splash.destroy()
         self.root.deiconify()
+        
+        # Set initial panel widths after window is shown
+        self.root.after(100, self.set_initial_panel_widths)
 
     def initialize_gui(self):
         # Configure style
@@ -428,11 +434,28 @@ class MainApplication:
         self.main_container = ttk.Frame(self.root)
         self.main_container.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # Left panel (inputs)
-        self.left_panel = ttk.Frame(self.main_container, style='TFrame')
-        self.left_panel.pack(side='left', fill='y', padx=(0, 10))
+        # Left panel container with scrollbar (25% width)
+        left_container = ttk.Frame(self.main_container)
+        left_container.pack(side='left', fill='y', padx=(0, 10))
         
-        # Right panel (map display)
+        # Create canvas and scrollbar for left panel
+        self.left_canvas = tk.Canvas(left_container, bg='white', highlightthickness=0, width=300)
+        self.left_scrollbar = ttk.Scrollbar(left_container, orient="vertical", command=self.left_canvas.yview)
+        self.left_scrollable_frame = ttk.Frame(self.left_canvas, style='TFrame')
+        
+        self.left_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
+        )
+        
+        self.left_canvas.create_window((0, 0), window=self.left_scrollable_frame, anchor="nw")
+        self.left_canvas.configure(yscrollcommand=self.left_scrollbar.set)
+        
+        # Pack the canvas and scrollbar
+        self.left_canvas.pack(side="left", fill="both", expand=True)
+        self.left_scrollbar.pack(side="right", fill="y")
+        
+        # Right panel (map display) (75% width)
         self.right_panel = ttk.Frame(self.main_container, style='TFrame')
         self.right_panel.pack(side='right', fill='both', expand=True)
         
@@ -441,11 +464,34 @@ class MainApplication:
         
         # Bind resize event
         self.root.bind('<Configure>', self.on_window_resize)
+        
+        # Bind mouse wheel to scroll
+        self.left_canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.left_canvas.bind("<Button-4>", self._on_mousewheel)
+        self.left_canvas.bind("<Button-5>", self._on_mousewheel)
+        
+    def _on_mousewheel(self, event):
+        """Handle mouse wheel scrolling for the left panel"""
+        if event.num == 4:  # Linux scroll up
+            self.left_canvas.yview_scroll(-1, "units")
+        elif event.num == 5:  # Linux scroll down
+            self.left_canvas.yview_scroll(1, "units")
+        else:  # Windows/Mac scroll
+            self.left_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    
+    def set_initial_panel_widths(self):
+        """Set the initial panel widths to 25%/75% ratio"""
+        # Calculate 25% of the main container width for left panel
+        main_width = self.main_container.winfo_width()
+        left_width = int(main_width * 0.25) - 20  # Subtract padding
+        
+        # Update left canvas width
+        self.left_canvas.configure(width=left_width)
 
     def _setup_input_fields(self):
         # File selection
-        ttk.Label(self.left_panel, text="Excel File:").pack(anchor='w', pady=(0, 5))
-        self.file_frame = ttk.Frame(self.left_panel)
+        ttk.Label(self.left_scrollable_frame, text="Excel File:").pack(anchor='w', pady=(0, 5))
+        self.file_frame = ttk.Frame(self.left_scrollable_frame)
         self.file_frame.pack(fill='x', pady=(0, 20))
         
         self.file_path_var = tk.StringVar()
@@ -453,7 +499,7 @@ class MainApplication:
         ttk.Button(self.file_frame, text="Browse", command=self.load_excel).pack(side='right', padx=(5, 0))
         
         # Species Selection Section
-        species_frame = ttk.LabelFrame(self.left_panel, text="Species Selection", padding="10")
+        species_frame = ttk.LabelFrame(self.left_scrollable_frame, text="Species Selection", padding="10")
         species_frame.pack(fill='x', pady=(0, 20))
         
         # Family
@@ -472,8 +518,8 @@ class MainApplication:
         self.species_dropdown.pack(fill='x', pady=(0, 10))
         
         # Hexagon count with preview button
-        ttk.Label(self.left_panel, text="Number of Hexagons:").pack(anchor='w', pady=(0, 5))
-        hex_frame = ttk.Frame(self.left_panel)
+        ttk.Label(self.left_scrollable_frame, text="Number of Hexagons:").pack(anchor='w', pady=(0, 5))
+        hex_frame = ttk.Frame(self.left_scrollable_frame)
         hex_frame.pack(fill='x', pady=(0, 20))
         
         self.hex_count_var = tk.StringVar(value="100")
@@ -495,10 +541,10 @@ class MainApplication:
             (121, float('inf'), "#800026")
         ]
         
-        ttk.Label(self.left_panel, text="Color Ranges:").pack(anchor='w', pady=(0, 5))
+        ttk.Label(self.left_scrollable_frame, text="Color Ranges:").pack(anchor='w', pady=(0, 5))
         
         for i, (min_val, max_val, color) in enumerate(default_ranges):
-            range_frame = ttk.Frame(self.left_panel)
+            range_frame = ttk.Frame(self.left_scrollable_frame)
             range_frame.pack(fill='x', pady=(0, 10))
             
             min_var = tk.StringVar(value=str(min_val))
@@ -514,9 +560,19 @@ class MainApplication:
             
             self.color_ranges.append((min_var, max_var, color_var))
         
+        # Format Selection Section
+        format_frame = ttk.LabelFrame(self.left_scrollable_frame, text="Download Format", padding="10")
+        format_frame.pack(fill='x', pady=(0, 20))
+        
+        # Radio buttons for format selection
+        ttk.Radiobutton(format_frame, text="TIFF Format (High Quality)", 
+                       variable=self.selected_format, value="tiff").pack(anchor='w', pady=(0, 5))
+        ttk.Radiobutton(format_frame, text="JPG Format (Smaller Size)", 
+                       variable=self.selected_format, value="jpg").pack(anchor='w', pady=(0, 5))
+        
         # Action buttons
-        ttk.Button(self.left_panel, text="Generate Heat Map", command=self.generate_map).pack(fill='x', pady=(5, 5))
-        ttk.Button(self.left_panel, text="Download Heat Map", command=self.download_map).pack(fill='x', pady=(5, 0))
+        ttk.Button(self.left_scrollable_frame, text="Generate Heat Map", command=self.generate_map).pack(fill='x', pady=(5, 5))
+        ttk.Button(self.left_scrollable_frame, text="Download Heat Map", command=self.download_map).pack(fill='x', pady=(5, 20))
         
         # Bind dropdowns
         self.family_dropdown.bind("<<ComboboxSelected>>", self.update_genus_dropdown)
@@ -959,17 +1015,28 @@ class MainApplication:
             now = datetime.datetime.now()
             timestamp = now.strftime("%I_%M_%p_%m_%d_%Y")  # e.g., 12_49_PM_6_12_2025
             
-            # Create a meaningful filename
-            filename = f"MontanaHeatMap_{timestamp}.tiff"
+            # Get selected format
+            selected_format = self.selected_format.get()
+            
+            # Create a meaningful filename with appropriate extension
+            if selected_format == "jpg":
+                filename = f"MontanaHeatMap_{timestamp}.jpg"
+                format_type = "jpeg"
+                dpi_setting = 150  # Lower DPI for JPG to keep file size reasonable
+            else:  # Default to tiff
+                filename = f"MontanaHeatMap_{timestamp}.tiff"
+                format_type = "tiff"
+                dpi_setting = 300  # High DPI for TIFF
+            
             file_path = os.path.join(downloads_path, filename)
             
-            # Save the figure
-            self.figure.savefig(file_path, format="tiff", dpi=300, bbox_inches='tight')
+            # Save the figure with selected format
+            self.figure.savefig(file_path, format=format_type, dpi=dpi_setting, bbox_inches='tight')
             
             # Show toast notification
             self.toast.show_toast(f"Map saved as {filename}")
             
-            print(f"✅ TIFF map saved as '{file_path}'")
+            print(f"✅ {format_type.upper()} map saved as '{file_path}'")
             
         except Exception as e:
             messagebox.showerror("Error", 
@@ -978,11 +1045,21 @@ class MainApplication:
             )
 
     def on_window_resize(self, event=None):
+        # Calculate 25% of the main container width for left panel
+        main_width = self.main_container.winfo_width()
+        left_width = int(main_width * 0.25) - 20  # Subtract padding
+        
+        # Update left canvas width
+        self.left_canvas.configure(width=left_width)
+        
         # Update the figure size to match the panel size
         w = self.right_panel.winfo_width() / 100
         h = self.right_panel.winfo_height() / 100
         self.figure.set_size_inches(w, h)
         self.canvas.draw()
+        
+        # Update canvas scroll region
+        self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
 
     def update_genus_dropdown(self, event=None):
         family = self.selected_family.get().strip()
